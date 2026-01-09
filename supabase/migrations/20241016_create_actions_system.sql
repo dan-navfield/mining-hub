@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS actions (
   -- Action details
   action_name VARCHAR(255) NOT NULL,
   action_type action_type NOT NULL DEFAULT 'custom',
-  status action_status NOT NULL DEFAULT 'pending',
+  status action_status NOT NULL DEFAULT 'Open',
   
   -- Dates and timing
   due_date DATE NOT NULL,
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS shire_rates (
   -- Status
   paid_date DATE,
   paid_amount DECIMAL(10,2),
-  status action_status NOT NULL DEFAULT 'pending',
+  status action_status NOT NULL DEFAULT 'Open',
   
   -- Notes
   comments TEXT,
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS objections (
   decision_date DATE,
   
   -- Status
-  status action_status NOT NULL DEFAULT 'pending',
+  status action_status NOT NULL DEFAULT 'Open',
   outcome TEXT,
   
   -- Documents and references
