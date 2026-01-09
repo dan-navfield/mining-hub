@@ -1,5 +1,6 @@
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Create custom types
 CREATE TYPE jurisdiction AS ENUM ('WA', 'NSW', 'VIC', 'NT', 'QLD', 'TAS');
@@ -20,7 +21,7 @@ CREATE TABLE public.users (
 
 -- Create tenements table
 CREATE TABLE public.tenements (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     jurisdiction jurisdiction NOT NULL,
     number TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -45,7 +46,7 @@ CREATE TABLE public.tenements (
 
 -- Create actions table
 CREATE TABLE public.actions (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     tenement_id UUID REFERENCES public.tenements(id) ON DELETE CASCADE NOT NULL,
     type action_type NOT NULL,
     title TEXT NOT NULL,
@@ -61,7 +62,7 @@ CREATE TABLE public.actions (
 
 -- Create due_diligence_runs table
 CREATE TABLE public.due_diligence_runs (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     created_by_user_id UUID REFERENCES public.users(id) NOT NULL,
     tenement_ids JSONB NOT NULL,
     template_key TEXT NOT NULL,
@@ -72,7 +73,7 @@ CREATE TABLE public.due_diligence_runs (
 
 -- Create audit_events table
 CREATE TABLE public.audit_events (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     entity TEXT NOT NULL,
     entity_id UUID NOT NULL,
     actor_user_id UUID REFERENCES public.users(id) NOT NULL,

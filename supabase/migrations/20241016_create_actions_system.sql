@@ -14,17 +14,20 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- Extend existing action_status enum with new values
+-- Extend existing action_status enum with new values (only if enum exists)
 DO $$ BEGIN
-    -- Add new enum values if they don't exist
-    IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'pending' AND enumtypid = 'action_status'::regtype) THEN
-        ALTER TYPE action_status ADD VALUE 'pending';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'completed' AND enumtypid = 'action_status'::regtype) THEN
-        ALTER TYPE action_status ADD VALUE 'completed';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'overdue' AND enumtypid = 'action_status'::regtype) THEN
-        ALTER TYPE action_status ADD VALUE 'overdue';
+    -- Check if action_status type exists first
+    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'action_status') THEN
+        -- Add new enum values if they don't exist
+        IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'pending' AND enumtypid = 'action_status'::regtype) THEN
+            ALTER TYPE action_status ADD VALUE 'pending';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'completed' AND enumtypid = 'action_status'::regtype) THEN
+            ALTER TYPE action_status ADD VALUE 'completed';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'overdue' AND enumtypid = 'action_status'::regtype) THEN
+            ALTER TYPE action_status ADD VALUE 'overdue';
+        END IF;
     END IF;
 EXCEPTION
     WHEN duplicate_object THEN null;

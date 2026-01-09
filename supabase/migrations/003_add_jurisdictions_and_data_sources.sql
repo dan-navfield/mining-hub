@@ -11,7 +11,7 @@ CREATE TYPE data_source_type AS ENUM ('API', 'WebScraping', 'Manual');
 
 -- Create data_sources table
 CREATE TABLE public.data_sources (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
     jurisdiction jurisdiction NOT NULL,
     type data_source_type NOT NULL,
