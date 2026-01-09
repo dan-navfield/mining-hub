@@ -108,26 +108,9 @@ class WAGovernmentAPI {
         }
       }
       
-      const apiUrl = `${this.baseUrl}/query?${queryParams}`;
-      console.log(`📡 API URL: ${apiUrl}`);
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mining-Hub-Application/1.0'
-        }
-      });
-      
-      if (!response.ok) {
-        console.error(`❌ API request failed: ${response.status} ${response.statusText}`);
-        return null;
-      }
-      
-      const data: WAAPIResponse = await response.json();
-      console.log(`✅ API Response: Found ${data.features?.length || 0} tenements`);
-      
-      if (!data.features || data.features.length === 0) {
-        console.log(`⚠️ No tenement found for ${tenementNumber}`);
+      // Check if we found any data
+      if (!data) {
+        console.log(`⚠️ No tenement found for ${tenementNumber} with any query`);
         return null;
       }
       

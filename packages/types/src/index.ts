@@ -180,3 +180,61 @@ export interface BulkUpdateActionsRequest {
   actionIds: string[];
   updates: UpdateActionRequest;
 }
+
+// WA API Response types
+export interface WATenementProperties {
+  oid: number;
+  gid: number;
+  tenid: string;
+  type: string;
+  name: string;
+  fmt_tenid: string;
+  status: string;
+  statusDate: string;
+  survstatus: string;
+  holdercnt: number;
+  holder1: string;
+  addr1?: string;
+  holder2?: string;
+  addr2?: string;
+  holder3?: string;
+  addr3?: string;
+  holder4?: string;
+  addr4?: string;
+  holder5?: string;
+  addr5?: string;
+  holder6?: string;
+  addr6?: string;
+  holder7?: string;
+  addr7?: string;
+  holder8?: string;
+  addr8?: string;
+  holder9?: string;
+  addr9?: string;
+  extract_da: string;
+  grantdate?: string;
+  granttime?: string;
+  startdate?: string;
+  starttime?: string;
+  enddate?: string;
+  endtime?: string;
+  legal_area: number;
+  unit_of_me: string;
+  st_area_geom: number;
+  st_perimeter_geom: number;
+  special_in?: string;
+}
+
+export interface WATenementFeature {
+  attributes: WATenementProperties;
+  geometry?: any;
+}
+
+export interface WATenementAPIResponse {
+  features: WATenementFeature[];
+  exceededTransferLimit?: boolean;
+}
+
+// Action types for status badges
+export type ActionStatus = 'Open' | 'Snoozed' | 'Done' | 'Cancelled';
+export type ActionType = 'Anniversary' | 'RentDue' | 'Section29' | 'AdHoc';

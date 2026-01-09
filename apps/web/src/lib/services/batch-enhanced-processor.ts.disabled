@@ -8,7 +8,7 @@
  * - Data validation and quality checks
  */
 
-import { minedxEnhancedScraper, EnhancedMinedxTenement } from './minedx-enhanced-scraper';
+// import { minedxEnhancedScraper, EnhancedMinedxTenement } from './minedx-enhanced-scraper';
 import { enhancedTenementStorage } from './enhanced-tenement-storage';
 
 export interface BatchProcessingOptions {

@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+
+// Disable static generation for this page
+export const dynamic = 'force-dynamic';
 import './map.css';
 import Map, { Source, Layer, Popup, MapRef } from 'react-map-gl';
 import { useRouter, useSearchParams } from 'next/navigation';
