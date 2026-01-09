@@ -2,7 +2,7 @@
   "name": "mining-hub",
   "private": true,
   "scripts": {
-    "build": "turbo build",
+    "build": "npm run build:web",
     "build:web": "cd apps/web && npm run build",
     "build:api": "cd apps/api && npm run build",
     "dev": "turbo dev",
@@ -10,7 +10,7 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "clean": "turbo clean",
-    "vercel-build": "npm run build"
+    "vercel-build": "npm run build:web"
   },
   "devDependencies": {
     "@turbo/gen": "^1.10.12",
