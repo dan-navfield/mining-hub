@@ -25,7 +25,6 @@
     "@nestjs/swagger": "^7.1.8",
     "@supabase/supabase-js": "^2.38.0",
     "@turf/turf": "^7.2.0",
-    "@types/turf": "^3.5.32",
     "adm-zip": "^0.5.16",
     "axios": "^1.4.0",
     "bullmq": "^4.8.0",
