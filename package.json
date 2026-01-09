@@ -13,8 +13,8 @@
     "vercel-build": "npm run build:web"
   },
   "devDependencies": {
-    "@turbo/gen": "^1.10.12",
-    "turbo": "^1.10.12"
+    "@turbo/gen": "^2.0.0",
+    "turbo": "^2.0.0"
   },
   "packageManager": "npm@8.15.0",
   "workspaces": [
