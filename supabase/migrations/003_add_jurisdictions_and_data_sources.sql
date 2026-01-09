@@ -5,9 +5,18 @@ CREATE TYPE jurisdiction AS ENUM ('WA', 'NSW', 'VIC', 'NT', 'QLD', 'TAS');
 -- Add jurisdiction column back to tenements table
 ALTER TABLE public.tenements ADD COLUMN jurisdiction jurisdiction NOT NULL DEFAULT 'WA';
 
--- Create data source related enums
-CREATE TYPE data_source_status AS ENUM ('Active', 'Inactive', 'Error', 'Maintenance');
-CREATE TYPE data_source_type AS ENUM ('API', 'WebScraping', 'Manual');
+-- Create data source related enums (with IF NOT EXISTS)
+DO $$ BEGIN
+    CREATE TYPE data_source_status AS ENUM ('Active', 'Inactive', 'Error', 'Maintenance');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE data_source_type AS ENUM ('API', 'WebScraping', 'Manual');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Create data_sources table
 CREATE TABLE public.data_sources (
