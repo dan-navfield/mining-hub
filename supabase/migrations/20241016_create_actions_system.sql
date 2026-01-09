@@ -245,22 +245,22 @@ CREATE TABLE IF NOT EXISTS due_diligence_reports (
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_actions_tenement_id ON actions(tenement_id);
-CREATE INDEX idx_actions_due_date ON actions(due_date);
-CREATE INDEX idx_actions_status ON actions(status);
-CREATE INDEX idx_actions_jurisdiction ON actions(jurisdiction);
-CREATE INDEX idx_actions_type ON actions(action_type);
-CREATE INDEX idx_actions_tenement_number ON actions(tenement_number);
+CREATE INDEX IF NOT EXISTS idx_actions_tenement_id ON actions(tenement_id);
+CREATE INDEX IF NOT EXISTS idx_actions_due_date ON actions(due_date);
+CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
+CREATE INDEX IF NOT EXISTS idx_actions_jurisdiction ON actions(jurisdiction);
+CREATE INDEX IF NOT EXISTS idx_actions_type ON actions(action_type);
+CREATE INDEX IF NOT EXISTS idx_actions_tenement_number ON actions(tenement_number);
 
-CREATE INDEX idx_shire_rates_due_date ON shire_rates(due_date);
-CREATE INDEX idx_shire_rates_status ON shire_rates(status);
-CREATE INDEX idx_shire_rates_shire_name ON shire_rates(shire_name);
+CREATE INDEX IF NOT EXISTS idx_shire_rates_due_date ON shire_rates(due_date);
+CREATE INDEX IF NOT EXISTS idx_shire_rates_status ON shire_rates(status);
+CREATE INDEX IF NOT EXISTS idx_shire_rates_shire_name ON shire_rates(shire_name);
 
-CREATE INDEX idx_objections_status ON objections(status);
-CREATE INDEX idx_objections_type ON objections(objection_type);
-CREATE INDEX idx_objections_hearing_date ON objections(hearing_date);
+CREATE INDEX IF NOT EXISTS idx_objections_status ON objections(status);
+CREATE INDEX IF NOT EXISTS idx_objections_type ON objections(objection_type);
+CREATE INDEX IF NOT EXISTS idx_objections_hearing_date ON objections(hearing_date);
 
-CREATE INDEX idx_due_diligence_generated_at ON due_diligence_reports(generated_at);
+CREATE INDEX IF NOT EXISTS idx_due_diligence_generated_at ON due_diligence_reports(generated_at);
 
 -- Create updated_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
