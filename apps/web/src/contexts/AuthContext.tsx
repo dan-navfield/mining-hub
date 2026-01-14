@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 
 export type UserType = 'platform_admin' | 'business_user' | 'client';
@@ -56,7 +56,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [hasRedirected, setHasRedirected] = useState(false);
   
   // Memoize supabase client to prevent re-creation on every render
-  const supabase = useMemo(() => createClientComponentClient(), []);
+  const supabase = useMemo(() => createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  ), []);
   const router = useRouter();
 
   const createUserProfile = (user: User): UserProfile => {
@@ -155,7 +158,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
+      async (event: any, currentSession: any) => {
         // Auth state changed
         
         setSession(currentSession);

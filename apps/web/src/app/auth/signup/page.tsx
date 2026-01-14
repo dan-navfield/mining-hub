@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, User, Building, Shield, Users, ArrowRight, Check } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 
 type UserType = 'platform_admin' | 'business_user' | 'client';
 
@@ -42,7 +42,10 @@ const userTypes: UserTypeOption[] = [
 
 export default function SignupPage() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   
   const [step, setStep] = useState<'user-type' | 'details'>('user-type');
   const [selectedUserType, setSelectedUserType] = useState<UserType | null>(null);
