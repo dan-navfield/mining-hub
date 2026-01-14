@@ -1,0 +1,453 @@
+/**
+ * Batch Enhanced Data Processor
+ * Handles large-scale scraping and processing of MINEDX data with:
+ * - Progress tracking and reporting
+ * - Error handling and retry logic
+ * - Database storage management
+ * - Performance optimization
+ * - Data validation and quality checks
+ */
+
+// import { minedxEnhancedScraper, EnhancedMinedxTenement } from './minedx-enhanced-scraper';
+import { enhancedTenementStorage } from './enhanced-tenement-storage';
+
+export interface BatchProcessingOptions {
+  batchSize?: number;
+  delayBetweenRequests?: number;
+  maxRetries?: number;
+  validateData?: boolean;
+  saveToDatabase?: boolean;
+  onProgress?: (progress: BatchProgress) => void;
+  onError?: (error: BatchError) => void;
+  onComplete?: (results: BatchResults) => void;
+}
+
+export interface BatchProgress {
+  totalTenements: number;
+  processedTenements: number;
+  successfulTenements: number;
+  failedTenements: number;
+  currentTenement: string;
+  estimatedTimeRemaining: number;
+  averageProcessingTime: number;
+  startTime: Date;
+  currentTime: Date;
+}
+
+export interface BatchError {
+  tenementNumber: string;
+  error: string;
+  attempt: number;
+  timestamp: Date;
+}
+
+export interface BatchResults {
+  totalProcessed: number;
+  successful: number;
+  failed: number;
+  errors: BatchError[];
+  processingTime: number;
+  averageTimePerTenement: number;
+  dataQualityReport: DataQualityReport;
+}
+
+export interface DataQualityReport {
+  tenementsWithSites: number;
+  tenementsWithProjects: number;
+  tenementsWithProduction: number;
+  tenementsWithEnvironmentalData: number;
+  averageSitesPerTenement: number;
+  averageProjectsPerTenement: number;
+  uniqueCommodities: string[];
+  uniqueHolders: string[];
+  dataCompletenessScore: number;
+}
+
+export class BatchEnhancedProcessor {
+  private processingStartTime: Date | null = null;
+  private processedTimes: number[] = [];
+
+  /**
+   * Process multiple tenements with comprehensive data extraction
+   */
+  async processTenements(
+    tenementNumbers: string[],
+    options: BatchProcessingOptions = {}
+  ): Promise<BatchResults> {
+    const {
+      batchSize = 10,
+      delayBetweenRequests = 2000,
+      maxRetries = 3,
+      validateData = true,
+      saveToDatabase = true,
+      onProgress,
+      onError,
+      onComplete
+    } = options;
+
+    this.processingStartTime = new Date();
+    const results: EnhancedMinedxTenement[] = [];
+    const errors: BatchError[] = [];
+    let successful = 0;
+    let failed = 0;
+
+    console.log(`🚀 Starting batch processing of ${tenementNumbers.length} tenements`);
+    console.log(`📊 Batch size: ${batchSize}, Delay: ${delayBetweenRequests}ms, Max retries: ${maxRetries}`);
+
+    // Process tenements in batches
+    for (let i = 0; i < tenementNumbers.length; i += batchSize) {
+      const batch = tenementNumbers.slice(i, i + batchSize);
+      console.log(`\n📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(tenementNumbers.length / batchSize)}`);
+      
+      // Process batch concurrently but with controlled concurrency
+      const batchPromises = batch.map(async (tenementNumber, batchIndex) => {
+        const globalIndex = i + batchIndex;
+        return this.processSingleTenement(
+          tenementNumber,
+          globalIndex,
+          tenementNumbers.length,
+          maxRetries,
+          validateData,
+          saveToDatabase,
+          onProgress,
+          onError
+        );
+      });
+
+      const batchResults = await Promise.allSettled(batchPromises);
+      
+      // Process batch results
+      batchResults.forEach((result, batchIndex) => {
+        const tenementNumber = batch[batchIndex];
+        
+        if (result.status === 'fulfilled' && result.value.success) {
+          results.push(result.value.data!);
+          successful++;
+        } else {
+          failed++;
+          const error: BatchError = {
+            tenementNumber,
+            error: result.status === 'rejected' ? result.reason.message : result.value.error,
+            attempt: maxRetries,
+            timestamp: new Date()
+          };
+          errors.push(error);
+          if (onError) onError(error);
+        }
+      });
+
+      // Add delay between batches
+      if (i + batchSize < tenementNumbers.length) {
+        console.log(`⏳ Waiting ${delayBetweenRequests}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+      }
+    }
+
+    const processingTime = Date.now() - this.processingStartTime.getTime();
+    const averageTimePerTenement = processingTime / tenementNumbers.length;
+
+    // Generate data quality report
+    const dataQualityReport = this.generateDataQualityReport(results);
+
+    const finalResults: BatchResults = {
+      totalProcessed: tenementNumbers.length,
+      successful,
+      failed,
+      errors,
+      processingTime,
+      averageTimePerTenement,
+      dataQualityReport
+    };
+
+    console.log(`\n🎉 Batch processing completed!`);
+    console.log(`✅ Successful: ${successful}/${tenementNumbers.length}`);
+    console.log(`❌ Failed: ${failed}/${tenementNumbers.length}`);
+    console.log(`⏱️ Total time: ${(processingTime / 1000 / 60).toFixed(2)} minutes`);
+    console.log(`📊 Data quality score: ${dataQualityReport.dataCompletenessScore.toFixed(1)}%`);
+
+    if (onComplete) onComplete(finalResults);
+    return finalResults;
+  }
+
+  /**
+   * Process a single tenement with retry logic
+   */
+  private async processSingleTenement(
+    tenementNumber: string,
+    index: number,
+    total: number,
+    maxRetries: number,
+    validateData: boolean,
+    saveToDatabase: boolean,
+    onProgress?: (progress: BatchProgress) => void,
+    onError?: (error: BatchError) => void
+  ): Promise<{success: boolean; data?: EnhancedMinedxTenement; error?: string}> {
+    
+    const startTime = Date.now();
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`📋 [${index + 1}/${total}] Processing ${tenementNumber} (attempt ${attempt}/${maxRetries})`);
+        
+        // Update progress
+        if (onProgress) {
+          const progress = this.calculateProgress(index, total, tenementNumber);
+          onProgress(progress);
+        }
+
+        // Scrape the tenement data
+        const tenementData = await minedxEnhancedScraper.scrapeTenementDetails(tenementNumber);
+        
+        if (!tenementData) {
+          throw new Error('No data returned from scraper');
+        }
+
+        // Validate data quality if requested
+        if (validateData) {
+          const validationResult = this.validateTenementData(tenementData);
+          if (!validationResult.isValid) {
+            console.warn(`⚠️ Data validation warnings for ${tenementNumber}:`, validationResult.warnings);
+          }
+        }
+
+        // Save to database if requested
+        if (saveToDatabase) {
+          const stored = await enhancedTenementStorage.storeTenementData(tenementData);
+          if (!stored) {
+            console.warn(`⚠️ Failed to store ${tenementNumber} in database, but continuing...`);
+          }
+        }
+
+        const processingTime = Date.now() - startTime;
+        this.processedTimes.push(processingTime);
+
+        console.log(`✅ [${index + 1}/${total}] Successfully processed ${tenementNumber} in ${processingTime}ms`);
+        console.log(`   📊 Found: ${tenementData.sites.length} sites, ${tenementData.projects.length} projects, ${tenementData.production.length} production records`);
+        
+        return { success: true, data: tenementData };
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`❌ [${index + 1}/${total}] Attempt ${attempt}/${maxRetries} failed for ${tenementNumber}: ${errorMessage}`);
+        
+        if (attempt === maxRetries) {
+          const batchError: BatchError = {
+            tenementNumber,
+            error: errorMessage,
+            attempt,
+            timestamp: new Date()
+          };
+          
+          if (onError) onError(batchError);
+          return { success: false, error: errorMessage };
+        }
+
+        // Wait before retry
+        const retryDelay = attempt * 1000; // Exponential backoff
+        console.log(`⏳ Waiting ${retryDelay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
+    return { success: false, error: 'Max retries exceeded' };
+  }
+
+  /**
+   * Calculate processing progress
+   */
+  private calculateProgress(currentIndex: number, total: number, currentTenement: string): BatchProgress {
+    const now = new Date();
+    const startTime = this.processingStartTime || now;
+    const elapsedTime = now.getTime() - startTime.getTime();
+    const averageProcessingTime = this.processedTimes.length > 0 
+      ? this.processedTimes.reduce((a, b) => a + b, 0) / this.processedTimes.length 
+      : 0;
+    
+    const remainingTenements = total - currentIndex;
+    const estimatedTimeRemaining = remainingTenements * averageProcessingTime;
+
+    return {
+      totalTenements: total,
+      processedTenements: currentIndex,
+      successfulTenements: this.processedTimes.length,
+      failedTenements: currentIndex - this.processedTimes.length,
+      currentTenement,
+      estimatedTimeRemaining,
+      averageProcessingTime,
+      startTime,
+      currentTime: now
+    };
+  }
+
+  /**
+   * Validate tenement data quality
+   */
+  private validateTenementData(data: EnhancedMinedxTenement): {isValid: boolean; warnings: string[]} {
+    const warnings: string[] = [];
+
+    // Check for basic required fields
+    if (!data.tenementNumber) warnings.push('Missing tenement number');
+    if (!data.tenementType) warnings.push('Missing tenement type');
+    if (!data.status) warnings.push('Missing status');
+
+    // Check for enhanced data
+    if (data.sites.length === 0) warnings.push('No sites found');
+    if (data.projects.length === 0) warnings.push('No projects found');
+    if (!data.holders || data.holders.length === 0) warnings.push('No holders found');
+
+    // Check data quality
+    if (data.sites.some(site => !site.siteName || !site.siteCode)) {
+      warnings.push('Some sites have incomplete information');
+    }
+
+    if (data.projects.some(project => !project.projectName || !project.projectCode)) {
+      warnings.push('Some projects have incomplete information');
+    }
+
+    return {
+      isValid: warnings.length < 3, // Allow some warnings but not too many
+      warnings
+    };
+  }
+
+  /**
+   * Generate comprehensive data quality report
+   */
+  private generateDataQualityReport(results: EnhancedMinedxTenement[]): DataQualityReport {
+    if (results.length === 0) {
+      return {
+        tenementsWithSites: 0,
+        tenementsWithProjects: 0,
+        tenementsWithProduction: 0,
+        tenementsWithEnvironmentalData: 0,
+        averageSitesPerTenement: 0,
+        averageProjectsPerTenement: 0,
+        uniqueCommodities: [],
+        uniqueHolders: [],
+        dataCompletenessScore: 0
+      };
+    }
+
+    const tenementsWithSites = results.filter(t => t.sites.length > 0).length;
+    const tenementsWithProjects = results.filter(t => t.projects.length > 0).length;
+    const tenementsWithProduction = results.filter(t => t.production.length > 0).length;
+    const tenementsWithEnvironmentalData = results.filter(t => t.environmentalRegistrations.length > 0).length;
+
+    const totalSites = results.reduce((sum, t) => sum + t.sites.length, 0);
+    const totalProjects = results.reduce((sum, t) => sum + t.projects.length, 0);
+
+    const averageSitesPerTenement = totalSites / results.length;
+    const averageProjectsPerTenement = totalProjects / results.length;
+
+    // Extract unique commodities
+    const commodities = new Set<string>();
+    results.forEach(t => {
+      t.projects.forEach(p => {
+        if (p.commodity) commodities.add(p.commodity);
+      });
+    });
+
+    // Extract unique holders
+    const holders = new Set<string>();
+    results.forEach(t => {
+      if (t.holders) {
+        t.holders.forEach(h => holders.add(h.holderName));
+      }
+    });
+
+    // Calculate data completeness score
+    const completenessFactors = [
+      tenementsWithSites / results.length,
+      tenementsWithProjects / results.length,
+      tenementsWithProduction / results.length,
+      tenementsWithEnvironmentalData / results.length,
+      results.filter(t => t.holders && t.holders.length > 0).length / results.length
+    ];
+    
+    const dataCompletenessScore = (completenessFactors.reduce((a, b) => a + b, 0) / completenessFactors.length) * 100;
+
+    return {
+      tenementsWithSites,
+      tenementsWithProjects,
+      tenementsWithProduction,
+      tenementsWithEnvironmentalData,
+      averageSitesPerTenement,
+      averageProjectsPerTenement,
+      uniqueCommodities: Array.from(commodities),
+      uniqueHolders: Array.from(holders),
+      dataCompletenessScore
+    };
+  }
+
+  /**
+   * Process tenements for a specific holder
+   */
+  async processHolderTenements(
+    holderName: string,
+    options: BatchProcessingOptions = {}
+  ): Promise<BatchResults> {
+    console.log(`🔍 Finding tenements for holder: ${holderName}`);
+    
+    const tenementNumbers = await minedxEnhancedScraper.scrapeHolderTenements(holderName);
+    
+    if (tenementNumbers.length === 0) {
+      console.log(`❌ No tenements found for holder: ${holderName}`);
+      return {
+        totalProcessed: 0,
+        successful: 0,
+        failed: 0,
+        errors: [],
+        processingTime: 0,
+        averageTimePerTenement: 0,
+        dataQualityReport: this.generateDataQualityReport([])
+      };
+    }
+
+    console.log(`📋 Found ${tenementNumbers.length} tenements for ${holderName}`);
+    return this.processTenements(tenementNumbers, options);
+  }
+
+  /**
+   * Generate processing report
+   */
+  generateReport(results: BatchResults): string {
+    const report = `
+# Enhanced Tenement Data Processing Report
+
+## Summary
+- **Total Processed**: ${results.totalProcessed}
+- **Successful**: ${results.successful} (${((results.successful / results.totalProcessed) * 100).toFixed(1)}%)
+- **Failed**: ${results.failed} (${((results.failed / results.totalProcessed) * 100).toFixed(1)}%)
+- **Processing Time**: ${(results.processingTime / 1000 / 60).toFixed(2)} minutes
+- **Average Time per Tenement**: ${(results.averageTimePerTenement / 1000).toFixed(2)} seconds
+
+## Data Quality Report
+- **Data Completeness Score**: ${results.dataQualityReport.dataCompletenessScore.toFixed(1)}%
+- **Tenements with Sites**: ${results.dataQualityReport.tenementsWithSites}
+- **Tenements with Projects**: ${results.dataQualityReport.tenementsWithProjects}
+- **Tenements with Production Data**: ${results.dataQualityReport.tenementsWithProduction}
+- **Tenements with Environmental Data**: ${results.dataQualityReport.tenementsWithEnvironmentalData}
+- **Average Sites per Tenement**: ${results.dataQualityReport.averageSitesPerTenement.toFixed(1)}
+- **Average Projects per Tenement**: ${results.dataQualityReport.averageProjectsPerTenement.toFixed(1)}
+- **Unique Commodities Found**: ${results.dataQualityReport.uniqueCommodities.length}
+- **Unique Holders Found**: ${results.dataQualityReport.uniqueHolders.length}
+
+## Commodities Discovered
+${results.dataQualityReport.uniqueCommodities.map(c => `- ${c}`).join('\n')}
+
+## Top Holders
+${results.dataQualityReport.uniqueHolders.slice(0, 10).map(h => `- ${h}`).join('\n')}
+
+## Errors
+${results.errors.length > 0 ? results.errors.map(e => `- ${e.tenementNumber}: ${e.error}`).join('\n') : 'No errors occurred'}
+
+---
+Report generated on ${new Date().toISOString()}
+    `.trim();
+
+    return report;
+  }
+}
+
+// Export singleton instance
+export const batchEnhancedProcessor = new BatchEnhancedProcessor();
