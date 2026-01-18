@@ -11,7 +11,14 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`🔄 Syncing ${jurisdiction}...`);
         
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/data-sources/sync/${jurisdiction}`, {
+        let syncUrl;
+        if (jurisdiction === 'WA') {
+          syncUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/data-sources/sync-wa-all`;
+        } else {
+          syncUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/data-sources/sync-${jurisdiction.toLowerCase()}`;
+        }
+        
+        const response = await fetch(syncUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

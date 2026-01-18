@@ -33,6 +33,14 @@ export default function DataSourcesPage() {
   const [checking, setChecking] = useState(false);
   const [realRecordCounts, setRealRecordCounts] = useState<Record<string, number>>({});
   const [syncingJurisdictions, setSyncingJurisdictions] = useState<Set<string>>(new Set());
+  const [syncProgress, setSyncProgress] = useState<Record<string, {
+    status: string;
+    progress: number;
+    currentRecord: number;
+    totalRecords: number;
+    message: string;
+    estimatedTimeRemaining?: number;
+  }>>({});
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [systemStats, setSystemStats] = useState({
     totalRecords: 0,
@@ -118,13 +126,58 @@ export default function DataSourcesPage() {
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
-  // Simple sync function with loading state
+  // Poll progress for a jurisdiction
+  const pollProgress = async (jurisdiction: string) => {
+    try {
+      const response = await fetch(`/api/data-sources/sync-progress/${jurisdiction}`);
+      const progress = await response.json();
+      
+      setSyncProgress(prev => ({
+        ...prev,
+        [jurisdiction]: progress
+      }));
+      
+      return progress.status !== 'syncing';
+    } catch (error) {
+      console.error('Failed to poll progress:', error);
+      return true; // Stop polling on error
+    }
+  };
+
+  // Enhanced sync function with real-time progress tracking
   const syncDataSource = async (jurisdiction: string) => {
     // Add to syncing set
     setSyncingJurisdictions(prev => new Set(prev).add(jurisdiction));
     
+    // Initialize progress
+    setSyncProgress(prev => ({
+      ...prev,
+      [jurisdiction]: {
+        status: 'syncing',
+        progress: 0,
+        currentRecord: 0,
+        totalRecords: 0,
+        message: 'Starting sync...'
+      }
+    }));
+    
+    // Start polling progress
+    const progressInterval = setInterval(async () => {
+      const shouldStop = await pollProgress(jurisdiction);
+      if (shouldStop) {
+        clearInterval(progressInterval);
+      }
+    }, 1000); // Poll every second
+    
     try {
-      const response = await fetch(`/api/data-sources/sync/${jurisdiction}`, {
+      let syncUrl;
+      if (jurisdiction === 'WA') {
+        syncUrl = `/api/data-sources/sync-wa-all`;
+      } else {
+        syncUrl = `/api/data-sources/sync-${jurisdiction.toLowerCase()}`;
+      }
+      
+      const response = await fetch(syncUrl, {
         method: 'POST',
       });
       const result = await response.json();
@@ -186,7 +239,7 @@ export default function DataSourcesPage() {
         {notifications.map((notification) => (
         <div
           key={notification.id}
-          className={`max-w-sm w-full shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all duration-300 ${
+          className={`max-w-2xl w-full mx-4 shadow-xl rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all duration-300 ${
             notification.type === 'success' ? 'bg-green-50 border-l-4 border-green-400' :
             notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-400' :
             'bg-blue-50 border-l-4 border-blue-400'
@@ -475,6 +528,33 @@ export default function DataSourcesPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Live Progress Bar */}
+                {syncingJurisdictions.has(source.jurisdiction) && syncProgress[source.jurisdiction] && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-blue-800">Sync Progress</span>
+                      <span className="text-xs text-blue-600">{Math.round(syncProgress[source.jurisdiction].progress)}%</span>
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-2 mb-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${syncProgress[source.jurisdiction].progress}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-blue-700 space-y-1">
+                      <div>{syncProgress[source.jurisdiction].message}</div>
+                      {syncProgress[source.jurisdiction].totalRecords > 0 && (
+                        <div className="flex justify-between">
+                          <span>Records: {syncProgress[source.jurisdiction].currentRecord.toLocaleString()} / {syncProgress[source.jurisdiction].totalRecords.toLocaleString()}</span>
+                          {syncProgress[source.jurisdiction].estimatedTimeRemaining && (
+                            <span>ETA: {Math.round(syncProgress[source.jurisdiction].estimatedTimeRemaining! / 1000)}s</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex space-x-3 pt-4 border-t border-gray-200">

@@ -36,16 +36,52 @@ export class RealDataSyncService {
       console.log('📡 Fetching ALL WA tenements from government API...');
       
       const tenementsApiUrl = 'https://services.slip.wa.gov.au/public/rest/services/SLIP_Public_Services/Industry_and_Mining/MapServer/3/query';
-      const queryParams = new URLSearchParams({
-        where: '1=1', // Get everything
-        outFields: 'fmt_tenid,tenid',
-        f: 'json',
-        returnGeometry: 'false',
-        resultRecordCount: '10000' // Get ALL tenements
+      
+      // First, get the total count
+      const countParams = new URLSearchParams({
+        where: '1=1',
+        returnCountOnly: 'true',
+        f: 'json'
       });
       
-      const response = await fetch(`${tenementsApiUrl}?${queryParams}`);
-      const apiResult = await response.json();
+      const countResponse = await fetch(`${tenementsApiUrl}?${countParams}`);
+      const countResult = await countResponse.json();
+      const totalCount = countResult.count || 0;
+      
+      console.log(`📊 Total WA tenements available: ${totalCount}`);
+      
+      // Fetch all records in batches
+      const allFeatures = [];
+      const maxRecordsPerRequest = 2000;
+      
+      for (let offset = 0; offset < totalCount; offset += maxRecordsPerRequest) {
+        console.log(`📡 Fetching records ${offset + 1} to ${Math.min(offset + maxRecordsPerRequest, totalCount)} of ${totalCount}...`);
+        
+        const queryParams = new URLSearchParams({
+          where: '1=1',
+          outFields: 'fmt_tenid,tenid,type,tenstatus,holder1,grantdate,startdate,enddate,legal_area,unit_of_me',
+          f: 'json',
+          returnGeometry: 'false',
+          resultRecordCount: maxRecordsPerRequest.toString(),
+          resultOffset: offset.toString()
+        });
+        
+        const response = await fetch(`${tenementsApiUrl}?${queryParams}`);
+        const apiResult = await response.json();
+        
+        if (apiResult.features && apiResult.features.length > 0) {
+          allFeatures.push(...apiResult.features);
+          console.log(`✅ Fetched ${apiResult.features.length} records (total so far: ${allFeatures.length})`);
+        } else {
+          console.log(`⚠️ No features returned for offset ${offset}`);
+          break;
+        }
+        
+        // Add small delay to be respectful to the API
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      const apiResult = { features: allFeatures };
       
       let allTenements: string[] = [];
       
