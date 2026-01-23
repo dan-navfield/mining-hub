@@ -4,6 +4,9 @@ import { Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import { ConditionalNavigation } from '@/components/conditional-navigation';
 
+// Force dynamic rendering to avoid static generation issues with Supabase env vars
+export const dynamic = 'force-dynamic';
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {

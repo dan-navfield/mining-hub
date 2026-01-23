@@ -56,10 +56,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [hasRedirected, setHasRedirected] = useState(false);
   
   // Memoize supabase client to prevent re-creation on every render
-  const supabase = useMemo(() => createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  ), []);
+  // Handle missing env vars gracefully during build time
+  const supabase = useMemo(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!url || !key) {
+      // Return a mock client during build time
+      return null as any;
+    }
+    
+    return createBrowserClient(url, key);
+  }, []);
   const router = useRouter();
 
   const createUserProfile = (user: User): UserProfile => {
@@ -137,6 +145,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   useEffect(() => {
+    // Skip if supabase client isn't available (build time)
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    
     // Get initial session
     const getInitialSession = async () => {
       try {
