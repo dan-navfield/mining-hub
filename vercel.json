@@ -1,13 +1,7 @@
 {
-  "buildCommand": "cd ../.. && npm run build:web",
-  "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "cd ../.. && npm install",
-  "functions": {
-    "app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
   "rewrites": [
     {
       "source": "/api/:path*",
