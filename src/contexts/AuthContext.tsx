@@ -90,6 +90,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const refreshProfile = async () => {
+    if (!supabase) return;
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (currentUser) {
@@ -102,6 +103,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!supabase) throw new Error('Supabase client not available');
     try {
       const { error } = await supabase.auth.updateUser({
         data: {
@@ -128,6 +130,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signOut = async () => {
+    if (!supabase) {
+      router.push('/auth/login');
+      return;
+    }
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -223,7 +229,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase.auth]); // Remove router from dependencies to prevent re-renders
+  }, [supabase]); // Remove router from dependencies to prevent re-renders
 
   // Computed properties for user type checks
   const isAdmin = profile?.userType === 'platform_admin';
