@@ -316,15 +316,11 @@ export default function AllTenementsPage() {
     
     try {
       // Create URL parameters for the map view
-      const mapParams = new URLSearchParams({
-        tenement: tenement.id,
-        jurisdictions: tenement.jurisdiction,
-        lng: '133.7751', // Will be updated with real coordinates
-        lat: '-25.2744',
-        zoom: '8'
-      });
-
-      // Navigate to map page with tenement highlighted
+      const mapParams = new URLSearchParams();
+      mapParams.set('selected', tenement.id);
+      mapParams.set('jurisdictions', tenement.jurisdiction);
+      
+      // Navigate to map page with tenement highlighted and centered
       router.push(`/map?${mapParams.toString()}`);
       
     } catch (error) {

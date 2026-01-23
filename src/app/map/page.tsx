@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Filter, Search, X, RotateCcw, Layers } from 'lucide-react';
+import { Filter, Search, X, RotateCcw, Layers, Share2, Check, MapPin } from 'lucide-react';
 import MapFiltersComponent from '@/components/map/MapFilters';
 
 // Mapbox access token - you'll need to set this in your environment variables
@@ -33,37 +34,119 @@ interface MapFilters {
 export default function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [tenements, setTenements] = useState<Tenement[]>([]);
   const [filteredTenements, setFilteredTenements] = useState<Tenement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTenement, setSelectedTenement] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   
-  const [filters, setFilters] = useState<MapFilters>({
-    jurisdictions: ['WA', 'NSW', 'VIC', 'QLD', 'NT', 'TAS'], // Default to all jurisdictions
-    types: [],
-    statuses: ['live', 'pending'], // Default to active statuses
-    holders: [],
-    search: ''
-  });
+  // Parse URL params for initial state
+  const getInitialFilters = useCallback((): MapFilters => {
+    const jurisdictions = searchParams.get('jurisdictions');
+    const statuses = searchParams.get('statuses');
+    const types = searchParams.get('types');
+    const holders = searchParams.get('holders');
+    const search = searchParams.get('search');
+    
+    return {
+      jurisdictions: jurisdictions ? jurisdictions.split(',') : ['WA', 'NSW', 'VIC', 'QLD', 'NT', 'TAS'],
+      types: types ? types.split(',') : [],
+      statuses: statuses ? statuses.split(',') : ['live', 'pending'],
+      holders: holders ? holders.split(',') : [],
+      search: search || ''
+    };
+  }, [searchParams]);
+  
+  const [filters, setFilters] = useState<MapFilters>(getInitialFilters);
+
+  // Get initial map position from URL params
+  const getInitialMapPosition = useCallback(() => {
+    const lng = parseFloat(searchParams.get('lng') || '133.7751');
+    const lat = parseFloat(searchParams.get('lat') || '-25.2744');
+    const zoom = parseFloat(searchParams.get('zoom') || '4');
+    const selected = searchParams.get('selected');
+    return { lng, lat, zoom, selected };
+  }, [searchParams]);
+
+  // Update URL with current state (debounced)
+  const updateURL = useCallback((options: {
+    filters?: MapFilters;
+    center?: { lng: number; lat: number };
+    zoom?: number;
+    selected?: string | null;
+  }) => {
+    const params = new URLSearchParams();
+    
+    const f = options.filters || filters;
+    if (f.jurisdictions.length > 0 && f.jurisdictions.length < 6) {
+      params.set('jurisdictions', f.jurisdictions.join(','));
+    }
+    if (f.statuses.length > 0 && !(f.statuses.length === 2 && f.statuses.includes('live') && f.statuses.includes('pending'))) {
+      params.set('statuses', f.statuses.join(','));
+    }
+    if (f.types.length > 0) params.set('types', f.types.join(','));
+    if (f.holders.length > 0) params.set('holders', f.holders.join(','));
+    if (f.search) params.set('search', f.search);
+    
+    if (options.center) {
+      params.set('lng', options.center.lng.toFixed(4));
+      params.set('lat', options.center.lat.toFixed(4));
+    }
+    if (options.zoom) params.set('zoom', options.zoom.toFixed(1));
+    
+    const sel = options.selected !== undefined ? options.selected : selectedTenement;
+    if (sel) params.set('selected', sel);
+    
+    const newUrl = params.toString() ? `/map?${params.toString()}` : '/map';
+    window.history.replaceState({}, '', newUrl);
+  }, [filters, selectedTenement]);
+
+  // Copy shareable link
+  const copyShareLink = useCallback(() => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }, []);
 
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
+    const { lng, lat, zoom, selected } = getInitialMapPosition();
+    
+    if (selected) setSelectedTenement(selected);
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/satellite-v9',
-      center: [133.7751, -25.2744], // Center of Australia
-      zoom: 4,
+      center: [lng, lat],
+      zoom: zoom,
       projection: 'mercator'
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+    
+    // Update URL when map moves
+    map.current.on('moveend', () => {
+      if (!map.current) return;
+      const center = map.current.getCenter();
+      const currentZoom = map.current.getZoom();
+      updateURL({ center: { lng: center.lng, lat: center.lat }, zoom: currentZoom });
+    });
+    
+    map.current.on('load', () => {
+      setMapReady(true);
+    });
 
     return () => {
       if (map.current) {
@@ -71,7 +154,7 @@ export default function MapPage() {
         map.current = null;
       }
     };
-  }, []);
+  }, [getInitialMapPosition, updateURL]);
 
   // Fetch tenements data
   useEffect(() => {
@@ -603,7 +686,55 @@ export default function MapPage() {
 
   const handleFiltersChange = (newFilters: MapFilters) => {
     setFilters(newFilters);
+    updateURL({ filters: newFilters });
   };
+  
+  // Center on selected tenement when it changes
+  useEffect(() => {
+    if (!selectedTenement || !mapReady || !map.current) return;
+    
+    const tenement = tenements.find(t => t.id === selectedTenement || t.number === selectedTenement);
+    if (tenement?.coordinates) {
+      map.current.flyTo({
+        center: tenement.coordinates,
+        zoom: 12,
+        duration: 1500
+      });
+      
+      // Show popup for selected tenement
+      setTimeout(() => {
+        if (!map.current) return;
+        const popupContent = `
+          <div class="p-3">
+            <div class="flex items-center space-x-2 mb-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs font-medium px-2 py-1 rounded-full">Selected</span>
+            </div>
+            <h3 class="font-semibold text-lg mb-2">${tenement.number}</h3>
+            <div class="space-y-1 text-sm">
+              <p><strong>Type:</strong> ${tenement.type}</p>
+              <p><strong>Status:</strong> <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                tenement.status === 'live' ? 'bg-green-100 text-green-800' :
+                tenement.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }">${tenement.status}</span></p>
+              <p><strong>Jurisdiction:</strong> ${tenement.jurisdiction}</p>
+              <p><strong>Holder:</strong> ${tenement.holder_name}</p>
+            </div>
+            <div class="mt-3 pt-2 border-t">
+              <a href="/tenements/${tenement.jurisdiction}/${encodeURIComponent(tenement.number.replace(/\\s+/g, '-'))}" class="text-emerald-600 hover:text-emerald-700 text-sm font-medium">
+                View Details →
+              </a>
+            </div>
+          </div>
+        `;
+        
+        new mapboxgl.Popup()
+          .setLngLat(tenement.coordinates as [number, number])
+          .setHTML(popupContent)
+          .addTo(map.current!);
+      }, 1600);
+    }
+  }, [selectedTenement, mapReady, tenements]);
 
   const resetView = () => {
     if (map.current) {
@@ -708,6 +839,24 @@ export default function MapPage() {
         >
           <RotateCcw className="w-4 h-4" />
           <span>Reset View</span>
+        </button>
+        
+        {/* Share Link */}
+        <button
+          onClick={copyShareLink}
+          className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 hover:bg-gray-50 flex items-center space-x-2"
+        >
+          {linkCopied ? (
+            <>
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span className="text-emerald-600">Link Copied!</span>
+            </>
+          ) : (
+            <>
+              <Share2 className="w-4 h-4" />
+              <span>Share View</span>
+            </>
+          )}
         </button>
       </div>
 
