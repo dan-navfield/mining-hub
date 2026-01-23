@@ -25,6 +25,13 @@ const nextConfig = {
         fs: false,
       };
     }
+    
+    // Exclude NestJS API code from build
+    config.externals = config.externals || [];
+    config.externals.push({
+      'apps/api': 'commonjs apps/api'
+    });
+    
     return config;
   },
   // Experimental features for better performance
